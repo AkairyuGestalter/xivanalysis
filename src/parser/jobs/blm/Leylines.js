@@ -232,6 +232,7 @@ export default class Leylines extends Module {
 						&nbsp;-&nbsp;{thisPercent}% uptime
 					</Fragment>,
 				},
+				content: { // TODO: Revising after pulling changes to show timeline
 				},
 			}
 		})
