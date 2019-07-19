@@ -1,397 +1,239 @@
 // Handle parsing each rotation. Confirm rotations have at least 8 F4 per Convert cycle and 6 F4 per normal cycle (or 5 F4 for non-Heart cycle)
 // Flag rotations that do not and list those as warnings
-/*
+
 import {t} from '@lingui/macro'
 import {Plural, Trans} from '@lingui/react'
 import React, {Fragment} from 'react'
 import {Accordion, Message} from 'semantic-ui-react'
+import _ from 'lodash'
 
 import {ActionLink, StatusLink} from 'components/ui/DbLink'
 import Rotation from 'components/ui/Rotation'
-import {getDataBy} from 'data'
 import ACTIONS from 'data/ACTIONS'
 import STATUSES from 'data/STATUSES'
-import Module from 'parser/core/Module'
-import {Requirement, Rule} from 'parser/core/modules/Checklist'
-import {SEVERITY, Suggestion, TieredSuggestion} from 'parser/core/modules/Suggestions'
-import DISPLAY_ORDER from './DISPLAY_ORDER'
-import {BLM_GAUGE_EVENT} from './Gauge'
+import Module, { dependency } from 'parser/core/Module'
+import CheckList, {Requirement, Rule} from 'parser/core/modules/Checklist'
+import Suggestions, {SEVERITY, Suggestion, TieredSuggestion} from 'parser/core/modules/Suggestions'
+import Invulnerability from 'parser/core/modules/Invulnerability';
+import { CastEvent, DamageEvent } from 'fflogs';
+import Entities from 'parser/core/modules/Entities';
 
-const EXPECTED_FIRE4 = 6
-const FIRE4_FROM_MANAFONT = 1
-const DEBUG_LOG_ALL_FIRE_COUNTS = false && process.env.NODE_ENV !== 'production'
-const AFUIBUFFMAXSTACK = 3
 const ISSUE_SEVERITY_TIERS = {
 	1: SEVERITY.MINOR,
 	3: SEVERITY.MEDIUM,
 	5: SEVERITY.MAJOR,
 }
 
-// This is feelycraft at the moment. Rotations longer than that get put into the history array to sort out transpose shenanigans.
-// TODO: consider downtime and do something with it. Like throwing out the rotation or godknows.
-const MIN_ROTATION_LENGTH = 3
+const STEP_IDS = [
+	ACTIONS.STANDARD_STEP.id,
+	ACTIONS.TECHNICAL_STEP.id,
+]
 
-export default class RotationWatchdog extends Module {
-	static handle = 'RotationWatchdog'
-	static title = t('blm.rotation-watchdog.title')`Rotation Issues`
-	static displayOrder = DISPLAY_ORDER.ROTATION
+const DANCE_MOVE_IDS = [
+	ACTIONS.ENTRECHAT.id,
+	ACTIONS.EMBOITE.id,
+	ACTIONS.JETE.id,
+	ACTIONS.PIROUETTE.id,
+]
 
-	static dependencies = [
-		'checklist',
-		'suggestions',
-		'gauge', // eslint-disable-line @xivanalysis/no-unused-dependencies
-		'invuln',
-		'combatants',
-		'enemies',
-	]
+const FINISHER_IDS = [
+	ACTIONS.STANDARD_FINISH.id,
+	ACTIONS.TECHNICAL_FINISH.id,
+]
 
-	_rotation = {}
-	_history = []
+const FINISHER_DAMAGE_IDS = [
+	ACTIONS.SINGLE_STANDARD_FINISH.id,
+	ACTIONS.DOUBLE_STANDARD_FINISH.id,
+	ACTIONS.SINGLE_TECHNICAL_FINISH.id,
+	ACTIONS.DOUBLE_TECHNICAL_FINISH.id,
+	ACTIONS.TRIPLE_TECHNICAL_FINISH.id,
+	ACTIONS.QUADRUPLE_TECHNICAL_FINISH.id,
+]
 
-	// check for buffs
-	_umbralHeartStacks = 0
-	_astralFireStacks = 0
-	_MP = 0
-	_lockedBuffs = false
-	_lastStop = false
-	_first = true
-	// check for UI ending with T3 things
-	_umbralIceStacks = 0
-	_T3 = false
-	_T3inUIFlag = false
-	// counter for suggestions
-	_inRotation = false
-	_missedF4s = 0
-	_extraF1s = 0
-	_UIEndingInT3 = 0
-	_missedF4sCauseEndingInT3 = 0
-	_extraT3s = 0
-	_rotationsWithoutFire = 0
-	_umbralIceBeforeFire = 0
-	_atypicalAFStartId = false
-	_astralFiresNotEndedWithDespair = 0
+class Dance {
+	start: number
+	end?: number
+	rotation: CastEvent[] = []
+	dancing: boolean = false
 
-	_gaugeState = {}
-
-	constructor(...args) {
-		super(...args)
-		this.addHook('begincast', {by: 'player'}, this._onBegin)
-		this.addHook('cast', {by: 'player'}, this._onCast)
-		this.addHook('init', this._onFirst)
-		this.addHook('complete', this._onComplete)
-		this.addHook(BLM_GAUGE_EVENT, this._onGaugeChange)
-	}
-
-	_onGaugeChange(event) {
-		// Keep track of how many UI stacks we had upon entering AF, affects expected F4 counts for the cycle
-		if (event.astralFire > 0 && this._gaugeState.astralFire === 0) {
-			this._umbralIceBeforeFire = this._gaugeState.umbralIce
-		}
-		this._gaugeState.astralFire = event.astralFire
-		this._gaugeState.umbralIce = event.umbralIce
-		this._gaugeState.umbralHearts = event.umbralHearts
-	}
-
-	// snapshot buffs and UH at the beginning of your recording
-	_onBegin(event) {
-		const actionId = event.ability.guid
-
-		// get UI status for to check for T3
-		this._umbralIceStacks = this._gaugeState.umbralIce
-		this._astralFireStacks = this._gaugeState.astralFire
-		if (actionId === ACTIONS.FIRE_III.id) {
-			this._lockingBuffs()
-		} else { this._T3 = false }
-
-		// Check to see if we get a T3 > F3
-		if (actionId === ACTIONS.THUNDER_III.id) { this._T3 = true }
-	}
-
-	_onCast(event) {
-		const actionId = event.ability.guid
-
-		// check if T3 > F3 happend and if we are in UI and get the MP value at the beginning of your AF
-		if (actionId === ACTIONS.FIRE_III.id) {
-			if (this._umbralIceStacks === AFUIBUFFMAXSTACK) {
-				if (this._T3) {
-					this._UIEndingInT3 ++
-					this._T3inUIFlag = true
-				}
-				this._MP = this.combatants.selected.resources.mp
+	public get expectedFinisherId(): number | undefined {
+		const danceOpener = _.first(this.rotation)
+		if (danceOpener) {
+			// The very first action in the opener (after the log starts) should be Standard Finish
+			// Check first to see if we started with Technical Step, otherwise assume we started with Standard
+			if (danceOpener.ability.guid === ACTIONS.TECHNICAL_STEP.id) {
+				return ACTIONS.QUADRUPLE_TECHNICAL_FINISH.id
 			}
-			// If we're gaining AF3 from an F3P, count it as the beginning of the phase for F4 count purposes
-			if (this._astralFire !== AFUIBUFFMAXSTACK) {
-				if (event.ability.overrideAction) {
-					this._atypicalAFStartId = event.ability.overrideAction
-				} else {
-					this._atypicalAFStartId = ACTIONS.FIRE_III.id
-				}
-			}
+			return ACTIONS.DOUBLE_STANDARD_FINISH.id
 		}
+		return
+	}
 
-		// start and stop trigger for our rotations is B3
-		if (actionId === ACTIONS.BLIZZARD_III.id) {
-			if (!this._first) { this._stopRecording() }
-			if (this._inRotation) {
-				const previousEvent = this._rotation.casts[this._rotation.casts.length-1]
-				if (previousEvent && previousEvent.ability.guid !== ACTIONS.DESPAIR.id) {
-					this._astralFiresNotEndedWithDespair++
-				}
-			}
-			this._startRecording(event)
-		} else if (actionId === ACTIONS.TRANSPOSE.id) {
-			this._handleTranspose(event)
-		} else if (actionId === ACTIONS.FIRE_III.id && !this._inRotation) {
-			// Catch oddly-begun fire phases in case something weird was going on.
-			this._startRecording(event)
-		}
-		if (this._first) { this._first = false }
-		const action = getDataBy(ACTIONS, 'id', actionId)
-		if (this._inRotation && action && !action.autoAttack) {
-			this._rotation.casts.push(event)
+	constructor(start: number) {
+		this.start = start
+		this.dancing = true
+	}
+}
+
+export default class DirtyDancing extends Module {
+	static handle = 'DirtyDancing'
+	static title = t('dng.dirty-dancing.title')`Dance Issues`
+	//static displayOrder = DISPLAY_ORDER.ROTATION
+
+	@dependency private checklist!: CheckList
+	@dependency private suggestions!: Suggestions
+	@dependency private invuln!: Invulnerability
+	@dependency private entities!: Entities
+
+	private danceHistory: Dance[] = []
+	private missedDances = 0
+	private dirtyDances = 0
+	private flatFeet = 0
+
+	protected init() {
+		this.addHook('cast', {by: 'player', abilityId: STEP_IDS}, this.beginDance)
+		this.addHook('cast', {by: 'player', abilityId: DANCE_MOVE_IDS}, this.continueDance)
+		this.addHook('cast', {by: 'player', abilityId: FINISHER_IDS}, this.finishDance)
+		// This should be aoedamage but ts DamageEvent doesn't support it yet
+		this.addHook('damage', {by: 'player', abilityId: FINISHER_DAMAGE_IDS}, this.resolveDance)
+		//this.addHook('death', {by: 'player'}, this.onDeath)
+		this.addHook('complete', this.onComplete)
+	}
+
+	private addDanceToHistory(event: CastEvent) {
+		const newDance = new Dance(event.timestamp)
+		newDance.rotation.push(event)
+		this.danceHistory.push(newDance)
+	}
+
+	private beginDance(event: CastEvent) {
+		this.addDanceToHistory(event)
+	}
+
+	private get lastDance(): Dance | undefined {
+		return _.last(this.danceHistory)
+	}
+
+	private continueDance(event: CastEvent) {
+		const dance = this.lastDance
+		if (dance && dance.dancing) {
+			dance.rotation.push(event)
 		}
 	}
 
-	// start recording at the first cast
-	_onFirst(event) {
-		this._startRecording(event)
+	private finishDance(event: CastEvent) {
+		const dance = this.lastDance
+		if (dance && dance.dancing) {
+			dance.rotation.push(event)
+		}
+		else {
+			this.addDanceToHistory(event)
+		}
 	}
 
-	_getThunderUptime() {
-		const statusTime = this.enemies.getStatusUptime(STATUSES.THUNDER_III.id)
+	private resolveDance(event: DamageEvent) {
+		const dance = this.lastDance
+		if (dance && dance.dancing) {
+			dance.end = event.timestamp
+			dance.dancing = false
+			// Count dance as dirty if we didn't get the expected finisher
+			if (event.ability.guid !== dance.expectedFinisherId)
+			{
+				this.dirtyDances++
+			}
+			// If the finisher didn't hit anything, and something could've been, ding it
+			if (event.amount === 0 && !this.invuln.isInvulnerable('all', event.timestamp)) {
+				this.missedDances++
+			}
+			// Dancer messed up if more step actions were recorded than we expected
+			const stepCount = dance.rotation.filter(step => STEP_IDS.includes(step.ability.guid)).length
+			const expectedCount = dance.expectedFinisherId === ACTIONS.QUADRUPLE_TECHNICAL_FINISH.id ? 4 : 2
+			// Only ding if the step count is greater than expected, we're not going to catch the steps in the opener dance
+			if (stepCount > expectedCount) {
+				this.flatFeet++
+			}
+		}
+	}
+
+	private getStandardFinishUptimePercent() {
+		const statusTime = this.entities.getStatusUptime(STATUSES.STANDARD_FINISH.id, this.parser.player.id)
 		const uptime = this.parser.fightDuration - this.invuln.getInvulnerableUptime()
 
 		return (statusTime / uptime) * 100
 	}
 
-	_onComplete() {
-		this._lastStop = true
-		this._stopRecording()
-		// writing a suggestion to skip B4 end of fight.
-		if (this._missedF4s) {
-			this.suggestions.add(new Suggestion({
-				icon: ACTIONS.FIRE_IV.icon,
-				content: <Trans id="blm.rotation-watchdog.suggestions.missed-f4s.content">
-					You lost at least  one <ActionLink {...ACTIONS.FIRE_IV}/> by not skipping <ActionLink {...ACTIONS.BLIZZARD_IV}/> in the Umbral Ice phase before the fight finished.
-				</Trans>,
-				severity: SEVERITY.MEDIUM,
-				why: <Trans id="blm.rotation-watchdog.suggestions.missed-f4s.why">
-					<Plural value={this._missedF4s} one="# Fire IV was" other="# Fire IVs were"/> missed.
-				</Trans>,
-			}))
-		}
-
-		// suggestion for unneccessary extra F1s.
-		// TODO: make severity based on fight length instead of static
-		if (this._extraF1s) {
-			this.suggestions.add(new Suggestion({
-				icon: ACTIONS.FIRE_I.icon,
-				content: <Trans id="blm.rotation-watchdog.suggestions.extra-f1s.content">
-					Casting more than one <ActionLink {...ACTIONS.FIRE_I}/> per Astral Fire cycle is a crutch that should be avoided by better pre-planning of the encounter.
-				</Trans>,
-				severity: (this._extraF1s > 1 ? SEVERITY.MEDIUM : SEVERITY.MINOR),
-				why: <Trans id="blm.rotation-watchdog.suggestions.extra-f1s.why">
-					<Plural value={this._extraF1s} one="# Fire I" other="# Fire Is"/> have been casted.
-				</Trans>,
-			}))
-		}
-
-		// Suggestion to end Astral Fires with Despair
-		if (this._astralFiresNotEndedWithDespair) {
+	private onComplete() {
+		// Suggest to move closer for finishers.
+		if (this.missedDances) {
 			this.suggestions.add(new TieredSuggestion({
-				icon: ACTIONS.DESPAIR.icon,
-				content: <Trans id="blm.rotation-watchdog.suggestions.end-with-despair.content">
-					Casting <ActionLink {...ACTIONS.BLIZZARD_III} /> to enter Umbral Ice costs no MP. Always end Astral Fire with a <ActionLink {...ACTIONS.DESPAIR} /> to make full use of your MP.
+				icon: ACTIONS.TECHNICAL_FINISH.icon,
+				content: <Trans id="dnc.dirty-dancing.suggestions.missed-finishers.content">
+					<ActionLink {...ACTIONS.TECHNICAL_FINISH} /> and <ActionLink {...ACTIONS.STANDARD_FINISH} /> are a significant source of damage. Make sure you're in range when finishing a dance.
 				</Trans>,
 				tiers: ISSUE_SEVERITY_TIERS,
-				value: this._astralFiresNotEndedWithDespair,
-				why: <Trans id="blm.rotation-watchdog.suggestions.end-with-despair.why">
-					<Plural value={this._astralFiresNotEndedWithDespair} one="# Astral Fire phase" other="# Astral Fire phases"/> ended with a spell other than <ActionLink {...ACTIONS.DESPAIR} />.
+				value: this.missedDances,
+				why: <Trans id="dnc.dirty-dancing.suggestions.missed-finishers.why">
+					<Plural value={this.missedDances} one="# finish" other="# finishes"/> missed.
 				</Trans>,
 			}))
 		}
 
-		// Suggestion for hard T3s under AF. Should only have one per cycle
-		if (this._extraT3s) {
+		// Suggestion to get all expected finishers
+		if (this.dirtyDances) {
 			this.suggestions.add(new TieredSuggestion({
-				icon: ACTIONS.THUNDER_III_FALSE.icon,
-				content: <Trans id="blm.rotation-watchdog.suggestions.wrong-t3.content">
-					Don't hard cast more than one <ActionLink {...ACTIONS.THUNDER_III}/> in your Astral Fire phase, since that costs MP which could be used for more <ActionLink {...ACTIONS.FIRE_IV}/>s.
+				icon: ACTIONS.STANDARD_FINISH.icon,
+				content: <Trans id="dnc.dirty-dancing.suggestions.dirty-dances.content">
+					Completing fewer steps than expected reduces the damage of your finishes. Make sure you complete the expected number of steps.
 				</Trans>,
 				tiers: ISSUE_SEVERITY_TIERS,
-				value: this._extraT3s,
-				why: <Trans id="blm.rotation-watchdog.suggestions.wrong-t3.why">
-					<Plural value={this._extraT3s} one="# extra Thunder III" other="# extra Thunder IIIs"/> were hard casted under Astral Fire.
+				value: this.dirtyDances,
+				why: <Trans id="dnc.dirty-dancing.suggestions.dirty-dances.why">
+					<Plural value={this.dirtyDances} one="# dance" other="# dances"/> finished with missing steps.
 				</Trans>,
 			}))
 		}
 
-		// Suggestion not to icemage... :(
-		if (this._rotationsWithoutFire > 0) {
+		// Suggestion to not faff about with steps
+		if (this.flatFeet) {
 			this.suggestions.add(new TieredSuggestion({
-				icon: ACTIONS.BLIZZARD_II.icon,
-				content: <Trans id="blm.rotation-watchdog.suggestions.icemage.content">
-					Avoid spending significant amounts of time in Umbral Ice. The majority of your damage comes from your Astral Fire phase, so you should maximize the number of <ActionLink {...ACTIONS.FIRE_IV}/>s cast during the fight.
+				icon: ACTIONS.EMBOITE.icon,
+				content: <Trans id="dnc.dirty-dancing.suggestions.flat-feet.content">
+					Executing the wrong steps leads to a loss of DPS uptime. Make sure to perform your dances correctly.
 				</Trans>,
 				tiers: ISSUE_SEVERITY_TIERS,
-				value: this._rotationsWithoutFire,
-				why: <Trans id="blm.rotation-watchdog.suggestions.icemage.why">
-					<Plural value={this._rotationsWithoutFire} one="# rotations" other="# rotations"/> were performed with no fire spells.
+				value: this.flatFeet,
+				why: <Trans id="dnc.dirty-dancing.suggestions.flat-feet.why">
+					<Plural value={this.flatFeet} one="# dance" other="# dancess"/> finished with extra steps.
 				</Trans>,
 			}))
 		}
 
 		this.checklist.add(new Rule({
-			name: <Trans id="blm.rotation-watchdog.checklist.dots.name">Keep your <StatusLink {...STATUSES.THUNDER_III} /> DoT up</Trans>,
-			description: <Trans id="blm.rotation-watchdog.checklist.dots.description">
-				Your <StatusLink {...STATUSES.THUNDER_III} /> DoT contributes significantly to your overall damage, both on its own, and from additional <StatusLink {...STATUSES.THUNDERCLOUD} /> procs. Try to keep the DoT applied.
+			name: <Trans id="dnc.dirty-dancing.checklist.standard-finish-buff.name">Keep your <StatusLink {...STATUSES.STANDARD_FINISH} /> buff up</Trans>,
+			description: <Trans id="dnc.dirty-dancing.checklist.standard-finish-buff.description">
+				Your <StatusLink {...STATUSES.STANDARD_FINISH} /> buff contributes significantly to your overall damage, and the damage of your <StatusLink {...STATUSES.DANCE_PARTNER} /> as well. Make sure to keep it up at all times.
 			</Trans>,
 			target: 95,
 			requirements: [
 				new Requirement({
-					name: <Fragment><StatusLink {...STATUSES.THUNDER_III} /> uptime</Fragment>,
-					percent: () => this._getThunderUptime(),
+					name: <Fragment><StatusLink {...STATUSES.STANDARD_FINISH} /> uptime</Fragment>,
+					percent: () => this.getStandardFinishUptimePercent(),
 				}),
 			],
 		}))
 	}
 
-	// if transpose is used under Encounter invul the recording gets resetted
-	_handleTranspose(event) {
-		if (this._inRotation) {
-			if (!this.invuln.isUntargetable('all', event.timestamp)) {
-				this._stopRecording()
-			} else {
-				this._resetRecording(event)
-			}
-		} else {
-			this._startRecording(event)
-		}
-	}
-
-	_startRecording(event) {
-		if (!this._inRotation) {
-			this._inRotation = true
-			this._rotation = {
-				start: event.timestamp,
-				end: null,
-				casts: [],
-			}
-		}
-	}
-
-	_stopRecording() {
-		if (this._inRotation) {
-			this._lockedBuffs = false
-			this._inRotation = false
-			this._rotation.end = this.parser.currentTimestamp
-			// TODO: Use a better trigger for downtime than transpose
-			// TODO: Handle aoe things
-			// TODO: Handle Flare?
-			const fire4Count = this._rotation.casts.filter(cast => cast.ability.guid === ACTIONS.FIRE_IV.id).length
-			const fire1Count = this._rotation.casts.filter(cast => cast.ability.guid === ACTIONS.FIRE_I.id).length
-			const despairCount = this._rotation.casts.filter(cast => cast.ability.guid === ACTIONS.DESPAIR.id).length
-			const hasManafont = this._rotation.casts.filter(cast => cast.ability.guid === ACTIONS.MANAFONT.id).length > 0
-
-			const hardT3Count = this._rotation.casts.filter(cast => cast.ability.overrideAction).filter(cast => cast.ability.overrideAction.id === ACTIONS.THUNDER_III_FALSE.id).length
-			if (hardT3Count > 1) {
-				this._extraT3s++
-			}
-			this._rotation.missingCount = this._getMissingFire4Count(fire4Count, hasManafont)
-			if (fire1Count > 1) {
-				this._extraF1s += fire1Count
-				this._extraF1s--
-			}
-			if (this._rotation.missingCount.missing > 0 || hardT3Count > 1 || DEBUG_LOG_ALL_FIRE_COUNTS) {
-				this._rotation.fire4Count = fire4Count
-
-				// Only display rotations with more than 3 casts since less is normally weird shit with Transpose
-				// Also throw out rotations with no Fire spells
-				const fire3Count = this._rotation.casts.filter(cast => cast.ability.guid === ACTIONS.FIRE_III.id).length
-				const fireCount = fire3Count + fire1Count + fire4Count + despairCount
-				if (fireCount === 0) {
-					this._rotationsWithoutFire++
-				}
-				if (this._rotation.casts.length > MIN_ROTATION_LENGTH && fireCount >= 1) { this._history.push(this._rotation) }
-				if (this._lastStop && this._umbralHeartStacks > 0 && this._rotation.missingCount === 2) {
-					const missedF4s = this._rotation.missingCount --
-					this._missedF4s = missedF4s
-				}
-			}
-			// reset the flag
-			this._atypicalAFStartId = null
-		}
-	}
-
-	_resetRecording(event) {
-		this._inRotation = false
-		this._rotation = {}
-		this._lockedBuffs = false
-		this._startRecording(event) // Make sure we start a new recording to catch actions when the boss returns
-	}
-
-	_getMissingFire4Count(count, hasManafont) {
-		let expected = EXPECTED_FIRE4 + (hasManafont ? FIRE4_FROM_MANAFONT : 0)
-
-		if (this._atypicalAFStartId === ACTIONS.FIRE_III_PROC.id || (this._umbralIceBeforeFire === AFUIBUFFMAXSTACK && this._atypicalAFStartId !== ACTIONS.FIRE_III.id)) {
-			// If we arrived in Astral Fire from UI3 normally or via F3P, but didn't have 2 or 3 hearts, we lose a F4
-			if (this._umbralHeartStacks < 2) {
-				expected--
-			}
-			// If you Convert when you have an even number of UH stacks going into this fire phase from UI3, the extra MP
-			// from converting is only enough to grant one additional Fire 4 as compared to not converting
-			// So remove one of the expected casts granted by FIRE4_FROM_MANAFONT
-			if (hasManafont && this._umbralHeartStacks % 2 === 0 && this._umbralIceBeforeFire === AFUIBUFFMAXSTACK && !this._astralFireBeganWithF3P) {
-				expected--
-			}
-		} else if (this._umbralIceBeforeFire > 0 || this._atypicalAFStartId) { // If we came from Ice other than UI3, we're probably losing Fire 4s
-			// If we don't have max hearts, we lose at least one cast
-			if (this._umbralHeartStacks < AFUIBUFFMAXSTACK) {
-				expected--
-			}
-			// If we have no hearts, we lose another one :(
-			if (this._umbralHeartStacks === 0) {
-				expected--
-			}
-			// If we started the fire phase with a Fire 3 hardcast not under ice (ie. AF1 b/c of Transpose), we lose a cast.
-			if (this._atypicalAFStartId) {
-				expected--
-			}
-		} else { // If we entered AF raw, we're losing two F4s
-			expected -= 2
-		}
-
-		const missing = expected - count
-		return {missing, expected}
-	}
-
-	_renderCount(count, missing) {
-		if (missing > 1) {
-			return <span className="text-error">{count}</span>
-		} if (missing > 0) {
-			return <span className="text-warning">{count}</span>
-		}
-		return count
-	}
-
-	_lockingBuffs() {
-		if (this._inRotation && !this._lockedBuffs) {
-			this._umbralHeartStacks = this._gaugeState.umbralHearts
-			this._lockedBuffs = true
-		}
-	}
 	output() {
-		const panels = this._history.map(rotation => {
+		const panels = this.danceHistory.map(dance => {
 			return {
-				key: 'title-' + rotation.start,
+				key: 'title-' + dance.start,
 				title: {
 					content: <Fragment>
-						{this.parser.formatTimestamp(rotation.start)}
-						<span> - </span>{this._renderCount(rotation.fire4Count, rotation.missingCount.missing)} / {rotation.missingCount.expected} Fire IVs
+						{this.parser.formatTimestamp(dance.start)}
 					</Fragment>,
 				},
 				content: {
-					content: <Rotation events={rotation.casts}/>,
+					content: <Rotation events={dance.rotation}/>,
 				},
 			}
 		})
@@ -399,9 +241,8 @@ export default class RotationWatchdog extends Module {
 		if (panels.length > 0) {
 			return <Fragment>
 				<Message>
-					<Trans id="blm.rotation-watchdog.accordion.message">
-						The core of BLM consists of 6 <ActionLink {...ACTIONS.FIRE_IV} />s per rotation (7 with <ActionLink {...ACTIONS.MANAFONT} />, 5 if skipping <ActionLink {...ACTIONS.BLIZZARD_IV} />).<br/>
-						Avoid missing Fire IV casts where possible.
+					<Trans id="dnc.dirty-dancing.accordion.message">
+						One of Dancer's primary responsibilities is buffing the party's damage via dances. Each dance also contributes to the Dancer's own damage and should be performed correctly.
 					</Trans>
 				</Message>
 				<Accordion
@@ -414,4 +255,3 @@ export default class RotationWatchdog extends Module {
 		}
 	}
 }
-*/
