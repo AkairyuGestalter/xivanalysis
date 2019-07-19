@@ -1,3 +1,5 @@
+import Weaving from './Weaving'
+
 export default [
-	// TODO: Put your modules here
+	Weaving,
 ]
