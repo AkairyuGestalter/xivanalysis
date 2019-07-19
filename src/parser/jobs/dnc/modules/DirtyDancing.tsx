@@ -3,20 +3,20 @@
 
 import {t} from '@lingui/macro'
 import {Plural, Trans} from '@lingui/react'
+import _ from 'lodash'
 import React, {Fragment} from 'react'
 import {Accordion, Message} from 'semantic-ui-react'
-import _ from 'lodash'
 
 import {ActionLink, StatusLink} from 'components/ui/DbLink'
 import Rotation from 'components/ui/Rotation'
 import ACTIONS from 'data/ACTIONS'
 import STATUSES from 'data/STATUSES'
-import Module, { dependency } from 'parser/core/Module'
+import {CastEvent, DamageEvent} from 'fflogs'
+import Module, {dependency} from 'parser/core/Module'
 import CheckList, {Requirement, Rule} from 'parser/core/modules/Checklist'
+import Entities from 'parser/core/modules/Entities'
+import Invulnerability from 'parser/core/modules/Invulnerability'
 import Suggestions, {SEVERITY, Suggestion, TieredSuggestion} from 'parser/core/modules/Suggestions'
-import Invulnerability from 'parser/core/modules/Invulnerability';
-import { CastEvent, DamageEvent } from 'fflogs';
-import Entities from 'parser/core/modules/Entities';
 
 const ISSUE_SEVERITY_TIERS = {
 	1: SEVERITY.MINOR,
@@ -78,7 +78,7 @@ class Dance {
 export default class DirtyDancing extends Module {
 	static handle = 'DirtyDancing'
 	static title = t('dng.dirty-dancing.title')`Dance Issues`
-	//static displayOrder = DISPLAY_ORDER.ROTATION
+	// static displayOrder = DISPLAY_ORDER.ROTATION
 
 	@dependency private checklist!: CheckList
 	@dependency private suggestions!: Suggestions
@@ -96,7 +96,7 @@ export default class DirtyDancing extends Module {
 		this.addHook('cast', {by: 'player', abilityId: FINISHER_IDS}, this.finishDance)
 		// This should be aoedamage but ts DamageEvent doesn't support it yet
 		this.addHook('damage', {by: 'player', abilityId: FINISHER_DAMAGE_IDS}, this.resolveDance)
-		//this.addHook('death', {by: 'player'}, this.onDeath)
+		// this.addHook('death', {by: 'player'}, this.onDeath)
 		this.addHook('complete', this.onComplete)
 	}
 
@@ -125,8 +125,7 @@ export default class DirtyDancing extends Module {
 		const dance = this.lastDance
 		if (dance && dance.dancing) {
 			dance.rotation.push(event)
-		}
-		else {
+		} else {
 			this.addDanceToHistory(event)
 		}
 	}
@@ -137,8 +136,7 @@ export default class DirtyDancing extends Module {
 			dance.end = event.timestamp
 			dance.dancing = false
 			// Count dance as dirty if we didn't get the expected finisher
-			if (event.ability.guid !== dance.expectedFinisherId)
-			{
+			if (event.ability.guid !== dance.expectedFinisherId) {
 				this.dirtyDances++
 			}
 			// If the finisher didn't hit anything, and something could've been, ding it
