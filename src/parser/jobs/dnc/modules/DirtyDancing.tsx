@@ -92,7 +92,7 @@ export default class DirtyDancing extends Module {
 
 	protected init() {
 		this.addHook('cast', {by: 'player', abilityId: STEP_IDS}, this.beginDance)
-		this.addHook('cast', {by: 'player', abilityId: DANCE_MOVE_IDS}, this.continueDance)
+		this.addHook('cast', {by: 'player'}, this.continueDance)
 		this.addHook('cast', {by: 'player', abilityId: FINISHER_IDS}, this.finishDance)
 		// This should be aoedamage but ts DamageEvent doesn't support it yet
 		this.addHook('damage', {by: 'player', abilityId: FINISHER_DAMAGE_IDS}, this.resolveDance)
