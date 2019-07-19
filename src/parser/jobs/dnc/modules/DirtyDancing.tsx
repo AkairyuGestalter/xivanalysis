@@ -1,6 +1,3 @@
-// Handle parsing each rotation. Confirm rotations have at least 8 F4 per Convert cycle and 6 F4 per normal cycle (or 5 F4 for non-Heart cycle)
-// Flag rotations that do not and list those as warnings
-
 import {t} from '@lingui/macro'
 import {Plural, Trans} from '@lingui/react'
 import _ from 'lodash'
@@ -16,7 +13,8 @@ import Module, {dependency} from 'parser/core/Module'
 import CheckList, {Requirement, Rule} from 'parser/core/modules/Checklist'
 import Entities from 'parser/core/modules/Entities'
 import Invulnerability from 'parser/core/modules/Invulnerability'
-import Suggestions, {SEVERITY, Suggestion, TieredSuggestion} from 'parser/core/modules/Suggestions'
+import Suggestions, {SEVERITY, TieredSuggestion} from 'parser/core/modules/Suggestions'
+import ErrorMessage from 'components/ui/ErrorMessage';
 
 const ISSUE_SEVERITY_TIERS = {
 	1: SEVERITY.MINOR,
@@ -38,23 +36,34 @@ const DANCE_MOVE_IDS = [
 
 const FINISHER_IDS = [
 	ACTIONS.STANDARD_FINISH.id,
-	ACTIONS.TECHNICAL_FINISH.id,
-]
-
-const FINISHER_DAMAGE_IDS = [
 	ACTIONS.SINGLE_STANDARD_FINISH.id,
 	ACTIONS.DOUBLE_STANDARD_FINISH.id,
+	ACTIONS.TECHNICAL_FINISH.id,
 	ACTIONS.SINGLE_TECHNICAL_FINISH.id,
 	ACTIONS.DOUBLE_TECHNICAL_FINISH.id,
 	ACTIONS.TRIPLE_TECHNICAL_FINISH.id,
 	ACTIONS.QUADRUPLE_TECHNICAL_FINISH.id,
 ]
 
+const EXPECTED_STEP_COUNT = {
+	[ACTIONS.STANDARD_STEP.id]: 2,
+	[ACTIONS.TECHNICAL_STEP.id]: 4,
+}
+
 class Dance {
 	start: number
 	end?: number
 	rotation: CastEvent[] = []
 	dancing: boolean = false
+	resolved: boolean = false
+
+	dirty: boolean = false
+	missed: boolean = false
+	extraSteps: boolean = false
+
+	public get error(): boolean {
+		return this.dirty || this.missed || this.extraSteps
+	}
 
 	public get expectedFinisherId(): number | undefined {
 		const danceOpener = _.first(this.rotation)
@@ -76,34 +85,36 @@ class Dance {
 }
 
 export default class DirtyDancing extends Module {
-	static handle = 'DirtyDancing'
-	static title = t('dng.dirty-dancing.title')`Dance Issues`
+	static handle = 'dirtydancing'
+	static title = t('dnc.dirty-dancing.title')`Dance Issues`
 	// static displayOrder = DISPLAY_ORDER.ROTATION
 
 	@dependency private checklist!: CheckList
 	@dependency private suggestions!: Suggestions
 	@dependency private invuln!: Invulnerability
-	@dependency private entities!: Entities
+	// Something is up with entities in ts...
+	// @dependency private entities!: Entities
 
 	private danceHistory: Dance[] = []
 	private missedDances = 0
 	private dirtyDances = 0
-	private flatFeet = 0
+	private extraSteps = 0
 
 	protected init() {
 		this.addHook('cast', {by: 'player', abilityId: STEP_IDS}, this.beginDance)
 		this.addHook('cast', {by: 'player'}, this.continueDance)
 		this.addHook('cast', {by: 'player', abilityId: FINISHER_IDS}, this.finishDance)
-		// This should be aoedamage but ts DamageEvent doesn't support it yet
-		this.addHook('damage', {by: 'player', abilityId: FINISHER_DAMAGE_IDS}, this.resolveDance)
+		this.addHook('damage', {by: 'player', abilityId: FINISHER_IDS}, this.resolveDance)
 		// this.addHook('death', {by: 'player'}, this.onDeath)
 		this.addHook('complete', this.onComplete)
 	}
 
-	private addDanceToHistory(event: CastEvent) {
+	private addDanceToHistory(event: CastEvent): Dance {
 		const newDance = new Dance(event.timestamp)
 		newDance.rotation.push(event)
 		this.danceHistory.push(newDance)
+
+		return newDance
 	}
 
 	private beginDance(event: CastEvent) {
@@ -115,9 +126,11 @@ export default class DirtyDancing extends Module {
 	}
 
 	private continueDance(event: CastEvent) {
-		const dance = this.lastDance
-		if (dance && dance.dancing) {
-			dance.rotation.push(event)
+		if (!STEP_IDS.includes(event.ability.guid) && !FINISHER_IDS.includes(event.ability.guid)) {
+			const dance = this.lastDance
+			if (dance && dance.dancing) {
+				dance.rotation.push(event)
+			}
 		}
 	}
 
@@ -125,6 +138,7 @@ export default class DirtyDancing extends Module {
 		const dance = this.lastDance
 		if (dance && dance.dancing) {
 			dance.rotation.push(event)
+			dance.dancing = false
 		} else {
 			this.addDanceToHistory(event)
 		}
@@ -132,35 +146,47 @@ export default class DirtyDancing extends Module {
 
 	private resolveDance(event: DamageEvent) {
 		const dance = this.lastDance
-		if (dance && dance.dancing) {
-			dance.end = event.timestamp
-			dance.dancing = false
+		if (dance && !dance.resolved) {
+
+			const finisher = dance.rotation[dance.rotation.length-1]
+			dance.end = finisher.timestamp
+
 			// Count dance as dirty if we didn't get the expected finisher
-			if (event.ability.guid !== dance.expectedFinisherId) {
-				this.dirtyDances++
+			if (finisher.ability.guid !== dance.expectedFinisherId) {
+				dance.dirty = true
 			}
-			// If the finisher didn't hit anything, and something could've been, ding it
-			if (event.amount === 0 && !this.invuln.isInvulnerable('all', event.timestamp)) {
-				this.missedDances++
+			// If the finisher didn't hit anything, and something could've been, ding it.
+			// Don't gripe if the boss is invuln, there is use-case for finishing during the downtime
+			if (event.amount === 0 && !this.invuln.isInvulnerable('all', finisher.timestamp)) {
+				dance.missed = true
 			}
 			// Dancer messed up if more step actions were recorded than we expected
-			const stepCount = dance.rotation.filter(step => STEP_IDS.includes(step.ability.guid)).length
-			const expectedCount = dance.expectedFinisherId === ACTIONS.QUADRUPLE_TECHNICAL_FINISH.id ? 4 : 2
+			const stepCount = dance.rotation.filter(step => DANCE_MOVE_IDS.includes(step.ability.guid)).length
+			let expectedCount = 0
+			if (dance.expectedFinisherId) {
+				expectedCount = EXPECTED_STEP_COUNT[dance.expectedFinisherId]
+			}
 			// Only ding if the step count is greater than expected, we're not going to catch the steps in the opener dance
 			if (stepCount > expectedCount) {
-				this.flatFeet++
+				dance.extraSteps = true
 			}
+
+			dance.resolved = true
 		}
 	}
 
-	private getStandardFinishUptimePercent() {
+/*	private getStandardFinishUptimePercent() {
 		const statusTime = this.entities.getStatusUptime(STATUSES.STANDARD_FINISH.id, this.parser.player.id)
 		const uptime = this.parser.fightDuration - this.invuln.getInvulnerableUptime()
 
 		return (statusTime / uptime) * 100
 	}
-
+*/
 	private onComplete() {
+		this.missedDances = this.danceHistory.filter(dance => dance.missed).length
+		this.dirtyDances = this.danceHistory.filter(dance => dance.dirty).length
+		this.extraSteps = this.danceHistory.filter(dance => dance.extraSteps).length
+
 		// Suggest to move closer for finishers.
 		if (this.missedDances) {
 			this.suggestions.add(new TieredSuggestion({
@@ -181,7 +207,7 @@ export default class DirtyDancing extends Module {
 			this.suggestions.add(new TieredSuggestion({
 				icon: ACTIONS.STANDARD_FINISH.icon,
 				content: <Trans id="dnc.dirty-dancing.suggestions.dirty-dances.content">
-					Completing fewer steps than expected reduces the damage of your finishes. Make sure you complete the expected number of steps.
+					Performing fewer steps than expected reduces the damage of your finishes. Make sure you perform the expected number of steps.
 				</Trans>,
 				tiers: ISSUE_SEVERITY_TIERS,
 				value: this.dirtyDances,
@@ -192,21 +218,21 @@ export default class DirtyDancing extends Module {
 		}
 
 		// Suggestion to not faff about with steps
-		if (this.flatFeet) {
+		if (this.extraSteps) {
 			this.suggestions.add(new TieredSuggestion({
 				icon: ACTIONS.EMBOITE.icon,
-				content: <Trans id="dnc.dirty-dancing.suggestions.flat-feet.content">
-					Executing the wrong steps leads to a loss of DPS uptime. Make sure to perform your dances correctly.
+				content: <Trans id="dnc.dirty-dancing.suggestions.extra-steps.content">
+					Performing the wrong steps makes your dance take longer and leads to a loss of DPS uptime. Make sure to perform your dances correctly.
 				</Trans>,
 				tiers: ISSUE_SEVERITY_TIERS,
-				value: this.flatFeet,
-				why: <Trans id="dnc.dirty-dancing.suggestions.flat-feet.why">
-					<Plural value={this.flatFeet} one="# dance" other="# dancess"/> finished with extra steps.
+				value: this.extraSteps,
+				why: <Trans id="dnc.dirty-dancing.suggestions.extra-steps.why">
+					<Plural value={this.extraSteps} one="# dance" other="# dances"/> finished with extra steps.
 				</Trans>,
 			}))
 		}
 
-		this.checklist.add(new Rule({
+/*		this.checklist.add(new Rule({
 			name: <Trans id="dnc.dirty-dancing.checklist.standard-finish-buff.name">Keep your <StatusLink {...STATUSES.STANDARD_FINISH} /> buff up</Trans>,
 			description: <Trans id="dnc.dirty-dancing.checklist.standard-finish-buff.description">
 				Your <StatusLink {...STATUSES.STANDARD_FINISH} /> buff contributes significantly to your overall damage, and the damage of your <StatusLink {...STATUSES.DANCE_PARTNER} /> as well. Make sure to keep it up at all times.
@@ -219,15 +245,16 @@ export default class DirtyDancing extends Module {
 				}),
 			],
 		}))
+	*/
 	}
 
 	output() {
-		const panels = this.danceHistory.map(dance => {
+		const panels = this.danceHistory.filter(dance => dance.error).map(dance => {
 			return {
-				key: 'title-' + dance.start,
+				key: 'title-' + dance.end,
 				title: {
 					content: <Fragment>
-						{this.parser.formatTimestamp(dance.start)}
+						{this.parser.formatTimestamp(dance.end || 0)}
 					</Fragment>,
 				},
 				content: {
@@ -240,7 +267,8 @@ export default class DirtyDancing extends Module {
 			return <Fragment>
 				<Message>
 					<Trans id="dnc.dirty-dancing.accordion.message">
-						One of Dancer's primary responsibilities is buffing the party's damage via dances. Each dance also contributes to the Dancer's own damage and should be performed correctly.
+						One of Dancer's primary responsibilities is buffing the party's damage via dances.<br />
+						Each dance also contributes to the Dancer's own damage and should be performed correctly.
 					</Trans>
 				</Message>
 				<Accordion
