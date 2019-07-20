@@ -191,49 +191,43 @@ export default class DirtyDancing extends Module {
 		this.extraSteps = this.danceHistory.filter(dance => dance.extraSteps).length
 
 		// Suggest to move closer for finishers.
-		if (this.missedDances) {
-			this.suggestions.add(new TieredSuggestion({
-				icon: ACTIONS.TECHNICAL_FINISH.icon,
-				content: <Trans id="dnc.dirty-dancing.suggestions.missed-finishers.content">
-					<ActionLink {...ACTIONS.TECHNICAL_FINISH} /> and <ActionLink {...ACTIONS.STANDARD_FINISH} /> are a significant source of damage. Make sure you're in range when finishing a dance.
-				</Trans>,
-				tiers: ISSUE_SEVERITY_TIERS,
-				value: this.missedDances,
-				why: <Trans id="dnc.dirty-dancing.suggestions.missed-finishers.why">
-					<Plural value={this.missedDances} one="# finish" other="# finishes"/> missed.
-				</Trans>,
-			}))
-		}
+		this.suggestions.add(new TieredSuggestion({
+			icon: ACTIONS.TECHNICAL_FINISH.icon,
+			content: <Trans id="dnc.dirty-dancing.suggestions.missed-finishers.content">
+				<ActionLink {...ACTIONS.TECHNICAL_FINISH} /> and <ActionLink {...ACTIONS.STANDARD_FINISH} /> are a significant source of damage. Make sure you're in range when finishing a dance.
+			</Trans>,
+			tiers: ISSUE_SEVERITY_TIERS,
+			value: this.missedDances,
+			why: <Trans id="dnc.dirty-dancing.suggestions.missed-finishers.why">
+				<Plural value={this.missedDances} one="# finish" other="# finishes"/> missed.
+			</Trans>,
+		}))
 
 		// Suggestion to get all expected finishers
-		if (this.dirtyDances) {
-			this.suggestions.add(new TieredSuggestion({
-				icon: ACTIONS.STANDARD_FINISH.icon,
-				content: <Trans id="dnc.dirty-dancing.suggestions.dirty-dances.content">
-					Performing fewer steps than expected reduces the damage of your finishes. Make sure you perform the expected number of steps.
-				</Trans>,
-				tiers: ISSUE_SEVERITY_TIERS,
-				value: this.dirtyDances,
-				why: <Trans id="dnc.dirty-dancing.suggestions.dirty-dances.why">
-					<Plural value={this.dirtyDances} one="# dance" other="# dances"/> finished with missing steps.
-				</Trans>,
-			}))
-		}
+		this.suggestions.add(new TieredSuggestion({
+			icon: ACTIONS.STANDARD_FINISH.icon,
+			content: <Trans id="dnc.dirty-dancing.suggestions.dirty-dances.content">
+				Performing fewer steps than expected reduces the damage of your finishes. Make sure you perform the expected number of steps.
+			</Trans>,
+			tiers: ISSUE_SEVERITY_TIERS,
+			value: this.dirtyDances,
+			why: <Trans id="dnc.dirty-dancing.suggestions.dirty-dances.why">
+				<Plural value={this.dirtyDances} one="# dance" other="# dances"/> finished with missing steps.
+			</Trans>,
+		}))
 
 		// Suggestion to not faff about with steps
-		if (this.extraSteps) {
-			this.suggestions.add(new TieredSuggestion({
-				icon: ACTIONS.EMBOITE.icon,
-				content: <Trans id="dnc.dirty-dancing.suggestions.extra-steps.content">
-					Performing the wrong steps makes your dance take longer and leads to a loss of DPS uptime. Make sure to perform your dances correctly.
-				</Trans>,
-				tiers: ISSUE_SEVERITY_TIERS,
-				value: this.extraSteps,
-				why: <Trans id="dnc.dirty-dancing.suggestions.extra-steps.why">
-					<Plural value={this.extraSteps} one="# dance" other="# dances"/> finished with extra steps.
-				</Trans>,
-			}))
-		}
+		this.suggestions.add(new TieredSuggestion({
+			icon: ACTIONS.EMBOITE.icon,
+			content: <Trans id="dnc.dirty-dancing.suggestions.extra-steps.content">
+				Performing the wrong steps makes your dance take longer and leads to a loss of DPS uptime. Make sure to perform your dances correctly.
+			</Trans>,
+			tiers: ISSUE_SEVERITY_TIERS,
+			value: this.extraSteps,
+			why: <Trans id="dnc.dirty-dancing.suggestions.extra-steps.why">
+				<Plural value={this.extraSteps} one="# dance" other="# dances"/> finished with extra steps.
+			</Trans>,
+		}))
 
 		this.checklist.add(new Rule({
 			name: <Trans id="dnc.dirty-dancing.checklist.standard-finish-buff.name">Keep your <StatusLink {...STATUSES.STANDARD_FINISH} /> buff up</Trans>,
