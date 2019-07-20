@@ -11,9 +11,9 @@ import STATUSES from 'data/STATUSES'
 import {CastEvent, DamageEvent} from 'fflogs'
 import Module, {dependency} from 'parser/core/Module'
 import CheckList, {Requirement, Rule} from 'parser/core/modules/Checklist'
+import Combatants from 'parser/core/modules/Combatants'
 import Invulnerability from 'parser/core/modules/Invulnerability'
 import Suggestions, {SEVERITY, TieredSuggestion} from 'parser/core/modules/Suggestions'
-import Combatants from 'parser/core/modules/Combatants'
 
 const ISSUE_SEVERITY_TIERS = {
 	1: SEVERITY.MINOR,
