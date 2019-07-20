@@ -108,17 +108,17 @@ export default {
 		id: 15997,
 		icon: 'https://xivapi.com/i/003000/003454.png',
 		name: 'Standard Step',
-		onGcd: true, // it is but it isn't...
-		cooldown: 1,
-		//cooldown: 30,
+		onGcd: true,
+		cooldown: 30,
+		gcdRecast: 1.5,
 	},
 	TECHNICAL_STEP: {
 		id: 15998,
 		icon: 'https://xivapi.com/i/003000/003473.png',
 		name: 'Technical Step',
-		onGcd: true, // it is but it isn't...
-		cooldown: 1,
-		//cooldown: 120,
+		onGcd: true,
+		cooldown: 120,
+		gcdRecast: 1.5,
 	},
 	EMBOITE: {
 		id: 15999,
