@@ -12,6 +12,11 @@ export const changelog = [
 	},
 	{
 		date: new Date('2019-07-26'),
+		Changes: () => <>Baseline feather gauge implementation.</>,
+		contributors: [CONTRIBUTORS.AKAIRYU],
+	},
+	{
+		date: new Date('2019-07-26'),
 		Changes: () => <>Baseline <StatusLink {...STATUSES.ESPRIT} /> gauge implementation.</>,
 		contributors: [CONTRIBUTORS.AKAIRYU],
 	},
