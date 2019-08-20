@@ -66,6 +66,7 @@ const CYCLE_ERRORS = {
 	EXTRA_F1: {priority: 50, message: <Trans id="blm.rotation-watchdog.error-messages.extra-f1">Extra <ActionLink {...ACTIONS.FIRE_I}/></Trans>}, // These two codes should stay close to each other
 	NO_FIRE_SPELLS: {priority: 75, message: <Trans id="blm.rotation-watchdog.error-messages.no-fire-spells">Rotation included no Fire spells</Trans>},
 	DROPPED_ENOCHIAN: {priority: 100, message: <Trans id="blm.rotation-watchdog.error-messages.dropped-enochian">Dropped <ActionLink {...ACTIONS.ENOCHIAN}/></Trans>},
+	DIED: {priority: 1000, message: <Trans id="blm.rotation-watchdog.error-messages.died">You died <ActionLink showName={false} showTooltip={false} {...ACTIONS.RAISE}/></Trans>},
 }
 
 class Cycle {
@@ -103,7 +104,7 @@ class Cycle {
 	 * value in doing so.
 	 */
 	public get expectedFire4s(): number | undefined {
-		if (this.finalOrDowntime) {
+		if (this.finalOrDowntime || this.errorCode === CYCLE_ERRORS.DIED) {
 			return
 		}
 
@@ -194,6 +195,7 @@ export default class RotationWatchdog extends Module {
 		this.addHook('cast', {by: 'player'}, this.onCast)
 		this.addHook('complete', this.onComplete)
 		this.addHook(BLM_GAUGE_EVENT, this.onGaugeEvent)
+		this.addHook('death', {to: 'player'}, this.onDeath)
 	}
 
 	// Handle events coming from BLM's Gauge module
@@ -267,6 +269,10 @@ export default class RotationWatchdog extends Module {
 		if (actionId === ACTIONS.THUNDER_III.id && event.targetID === this.primaryTargetId) {
 			this.thunder3Casts++
 		}
+	}
+
+	private onDeath() {
+		this.currentRotation.errorCode = CYCLE_ERRORS.DIED
 	}
 
 	// Get the uptime percentage for the Thunder status defbuff
