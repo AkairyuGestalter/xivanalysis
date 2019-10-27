@@ -258,7 +258,9 @@ export default class Gauge extends Module {
 
 	// Refund unable-to-act time if the downtime window was longer than the AF/UI timer
 	_countLostPolyglots(time) {
-		const unableToActTime = this.unableToAct.getDowntimes().filter(downtime => Math.max(0, downtime.end - downtime.start) >= ASTRAL_UMBRAL_DURATION).reduce((duration, downtime) => duration + Math.max(0, downtime.end - downtime.start), 0)
+		const unableToActTime = this.unableToAct.getDowntimes()
+			.filter(downtime => Math.max(0, downtime.end - downtime.start) >= ASTRAL_UMBRAL_DURATION) // Find all of the unabletoact times that were long enough to break enochian
+			.reduce((duration, downtime) => duration + Math.max(0, downtime.end - downtime.start), 0) // sum up the duration of those enochian-breaking downtimes.
 		return Math.floor((time - unableToActTime)/ENOCHIAN_DURATION_REQUIRED)
 	}
 
@@ -360,7 +362,10 @@ export default class Gauge extends Module {
 		this._lostPolyglot = this._countLostPolyglots(this._enochianDownTimer.time)
 
 		// Find out how many of the enochian drops ocurred during times where the player could not act for longer than the AF/UI buff timer. If they could act, they could've kept it going, so warn about those.
-		const droppedEno = this._droppedEnoTimestamps.filter(drop => this.unableToAct.getDowntimes(drop, drop).filter(downtime => Math.max(0, downtime.end - downtime.start) >= ASTRAL_UMBRAL_DURATION).length === 0).length
+		const droppedEno = this._droppedEnoTimestamps.filter(drop => // For each time that enochian fell off...
+			this.unableToAct.getDowntimes(drop, drop) // Find out if there was an unabletoact time when this enochian drop occurred.
+				.filter(downtime => Math.max(0, downtime.end - downtime.start) >= ASTRAL_UMBRAL_DURATION).length === 0) // Double-check to see if the downtime was long enough to force the drop, if it was, we're discounting this drop
+			.length // Get the final count of drops that weren't forced
 		if (droppedEno) {
 			this.suggestions.add(new Suggestion({
 				icon: ACTIONS.ENOCHIAN.icon,
