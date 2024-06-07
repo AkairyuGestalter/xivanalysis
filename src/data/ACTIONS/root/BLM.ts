@@ -106,25 +106,13 @@ export const BLM = ensureActions({
 		speedAttribute: Attribute.SPELL_SPEED,
 		castTime: 3000,
 	},
-	THUNDER: {
-		id: 144,
-		name: 'Thunder',
-		icon: 'https://xivapi.com/i/000000/000457.png',
+	FLARE_STAR: {
+		id: 7000162, // TODO
+		name: 'Flare Star',
+		icon: 'https://xivapi.com/i/002000/002652.png', // TODO
 		onGcd: true,
 		speedAttribute: Attribute.SPELL_SPEED,
-		castTime: 2500,
-		mpCost: 200,
-		statusesApplied: ['THUNDER_I'],
-	},
-	THUNDER_II: {
-		id: 7447,
-		name: 'Thunder II',
-		icon: 'https://xivapi.com/i/000000/000468.png',
-		onGcd: true,
-		speedAttribute: Attribute.SPELL_SPEED,
-		castTime: 2500,
-		mpCost: 400,
-		statusesApplied: ['THUNDER_II'],
+		castTime: 3000,
 	},
 	THUNDER_III: {
 		id: 153,
@@ -132,9 +120,17 @@ export const BLM = ensureActions({
 		icon: 'https://xivapi.com/i/000000/000459.png',
 		onGcd: true,
 		speedAttribute: Attribute.SPELL_SPEED,
-		castTime: 2500,
 		mpCost: 400,
 		statusesApplied: ['THUNDER_III'],
+	},
+	HIGH_THUNDER: {
+		id: 7000153, // TODO
+		name: 'High Thunder',
+		icon: 'https://xivapi.com/i/000000/000459.png', // TODO
+		onGcd: true,
+		speedAttribute: Attribute.SPELL_SPEED,
+		mpCost: 400,
+		statusesApplied: ['HIGH_THUNDER'],
 	},
 	THUNDER_IV: {
 		id: 7420,
@@ -142,9 +138,17 @@ export const BLM = ensureActions({
 		icon: 'https://xivapi.com/i/002000/002662.png',
 		onGcd: true,
 		speedAttribute: Attribute.SPELL_SPEED,
-		castTime: 2500,
 		mpCost: 800,
 		statusesApplied: ['THUNDER_IV'],
+	},
+	HIGH_THUNDER_II: {
+		id: 707420, // TODO
+		name: 'High Thunder II',
+		icon: 'https://xivapi.com/i/002000/002662.png', // TODO
+		onGcd: true,
+		speedAttribute: Attribute.SPELL_SPEED,
+		mpCost: 800,
+		statusesApplied: ['HIGH_THUNDER_II'],
 	},
 	SCATHE: {
 		id: 156,
@@ -200,19 +204,17 @@ export const BLM = ensureActions({
 		cooldown: 120000,
 		statusesApplied: ['LEY_LINES'],
 	},
-	SHARPCAST: {
-		id: 3574,
-		name: 'Sharpcast',
-		icon: 'https://xivapi.com/i/002000/002657.png',
-		cooldown: 30000,
-		statusesApplied: ['SHARPCAST'],
-		charges: 2,
-	},
 	BETWEEN_THE_LINES: {
 		id: 7419,
 		name: 'Between the Lines',
 		icon: 'https://xivapi.com/i/002000/002661.png',
 		cooldown: 3000,
+	},
+	RETRACE: {
+		id: 7003573, // TODO
+		name: 'Retrace',
+		icon: 'https://xivapi.com/i/002000/002656.png', // TODO
+		cooldown: 40000,
 	},
 	TRIPLECAST: {
 		id: 7421,
@@ -252,7 +254,6 @@ export const BLM = ensureActions({
 		icon: 'https://xivapi.com/i/002000/002672.png',
 		onGcd: true,
 		speedAttribute: Attribute.SPELL_SPEED,
-		castTime: 2500,
 		mpCost: 1600,
 	},
 })

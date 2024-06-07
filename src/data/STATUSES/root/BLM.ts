@@ -1,28 +1,29 @@
 import {ensureStatuses} from '../type'
 
-// TODO: Fill in the rest of this
 export const BLM = ensureStatuses({
-	THUNDER_I: {
-		id: 161,
-		name: 'Thunder',
-		icon: 'https://xivapi.com/i/010000/010457.png',
-	},
-	THUNDER_II: {
-		id: 162,
-		name: 'Thunder II',
-		icon: 'https://xivapi.com/i/010000/010458.png',
-	},
 	THUNDER_III: {
 		id: 163,
 		name: 'Thunder III',
 		icon: 'https://xivapi.com/i/010000/010459.png',
-		duration: 30000,
+		duration: 27000,
 	},
 	THUNDER_IV: {
 		id: 1210,
 		name: 'Thunder IV',
 		icon: 'https://xivapi.com/i/012000/012657.png',
-		duration: 18000,
+		duration: 21000,
+	},
+	HIGH_THUNDER: {
+		id: 7000163, // TODO
+		name: 'High Thunder', // TODO
+		icon: 'https://xivapi.com/i/010000/010459.png', // TODO
+		duration: 30000,
+	},
+	HIGH_THUNDER_II: {
+		id: 7001210, // TODO
+		name: 'High Thunder II', // TODO
+		icon: 'https://xivapi.com/i/012000/012657.png', // TODO
+		duration: 24000,
 	},
 	TRIPLECAST: {
 		id: 1211,
@@ -35,11 +36,11 @@ export const BLM = ensureStatuses({
 		icon: 'https://xivapi.com/i/010000/010460.png',
 		duration: 30000,
 	},
-	THUNDERCLOUD: {
-		id: 164,
-		name: 'Thundercloud',
-		icon: 'https://xivapi.com/i/010000/010461.png',
-		duration: 40000,
+	THUNDERHEAD: {
+		id: 7000164, // TODO
+		name: 'Thunderhead',
+		icon: 'https://xivapi.com/i/010000/010461.png', // TODO
+		duration: 30000,
 	},
 	LEY_LINES: {
 		id: 737,
@@ -52,12 +53,6 @@ export const BLM = ensureStatuses({
 		name: 'Circle Of Power',
 		icon: 'https://xivapi.com/i/012000/012654.png',
 		speedModifier: 0.85,
-	},
-	SHARPCAST: {
-		id: 867,
-		name: 'Sharpcast',
-		icon: 'https://xivapi.com/i/012000/012655.png',
-		duration: 30000,
 	},
 	MANAWARD: {
 		id: 168,
