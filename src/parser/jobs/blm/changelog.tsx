@@ -9,6 +9,11 @@ export const changelog = [
 	// },
 	{
 		date: new Date('2024-XX-XX'),
+		Changes: () => <>Updated gauge state tracking for Dawntrail</>,
+		contributors: [CONTRIBUTORS.AKAIRYU],
+	},
+	{
+		date: new Date('2024-XX-XX'),
 		Changes: () => <>Initial data scaffolding for Dawntrail BLM</>,
 		contributors: [CONTRIBUTORS.AKAIRYU],
 	},
