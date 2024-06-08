@@ -120,7 +120,6 @@ export const BLM = ensureActions({
 		icon: 'https://xivapi.com/i/000000/000459.png',
 		onGcd: true,
 		speedAttribute: Attribute.SPELL_SPEED,
-		mpCost: 400,
 		statusesApplied: ['THUNDER_III'],
 	},
 	HIGH_THUNDER: {
@@ -129,7 +128,6 @@ export const BLM = ensureActions({
 		icon: 'https://xivapi.com/i/000000/000459.png', // TODO
 		onGcd: true,
 		speedAttribute: Attribute.SPELL_SPEED,
-		mpCost: 400,
 		statusesApplied: ['HIGH_THUNDER'],
 	},
 	THUNDER_IV: {
@@ -138,7 +136,6 @@ export const BLM = ensureActions({
 		icon: 'https://xivapi.com/i/002000/002662.png',
 		onGcd: true,
 		speedAttribute: Attribute.SPELL_SPEED,
-		mpCost: 800,
 		statusesApplied: ['THUNDER_IV'],
 	},
 	HIGH_THUNDER_II: {
@@ -147,7 +144,6 @@ export const BLM = ensureActions({
 		icon: 'https://xivapi.com/i/002000/002662.png', // TODO
 		onGcd: true,
 		speedAttribute: Attribute.SPELL_SPEED,
-		mpCost: 800,
 		statusesApplied: ['HIGH_THUNDER_II'],
 	},
 	SCATHE: {

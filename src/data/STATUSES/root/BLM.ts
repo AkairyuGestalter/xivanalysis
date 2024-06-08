@@ -15,13 +15,13 @@ export const BLM = ensureStatuses({
 	},
 	HIGH_THUNDER: {
 		id: 7000163, // TODO
-		name: 'High Thunder', // TODO
+		name: 'High Thunder',
 		icon: 'https://xivapi.com/i/010000/010459.png', // TODO
 		duration: 30000,
 	},
 	HIGH_THUNDER_II: {
 		id: 7001210, // TODO
-		name: 'High Thunder II', // TODO
+		name: 'High Thunder II',
 		icon: 'https://xivapi.com/i/012000/012657.png', // TODO
 		duration: 24000,
 	},
@@ -59,10 +59,5 @@ export const BLM = ensureStatuses({
 		name: 'Manaward',
 		icon: 'https://xivapi.com/i/010000/010456.png',
 		duration: 20000,
-	},
-	ENHANCED_FLARE: {
-		id: 2960,
-		name: 'Enhanced Flare',
-		icon: 'https://xivapi.com/i/012000/012659.png',
 	},
 })
