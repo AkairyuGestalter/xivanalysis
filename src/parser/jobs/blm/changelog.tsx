@@ -9,6 +9,11 @@ export const changelog = [
 	// },
 	{
 		date: new Date('2024-XX-XX'),
+		Changes: () => <>Updated gauge state tracking for Dawntrail</>,
+		contributors: [CONTRIBUTORS.AKAIRYU],
+	},
+	{
+		date: new Date('2024-XX-XX'),
 		Changes: () => <>Add new actions and statuses, remove deleted actions and statuses, and some minimal cleanup to keep modules compiling</>,
 		contributors: [CONTRIBUTORS.AKAIRYU],
 	},
