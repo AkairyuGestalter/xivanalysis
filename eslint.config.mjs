@@ -19,10 +19,10 @@ export default pluginTs.config(
 		languageOptions: {
 			parserOptions: {
 				tsconfigRootDir: import.meta.dirname,
-				project: [
-					'./tsconfig.json',
-					'./tsconfig.tooling.json',
-				],
+				projectService: {
+					defaultProject: 'tsconfig.tooling.json',
+					allowDefaultProject: ['eslint.config.mjs']
+				}
 			},
 
 			ecmaVersion: 5,
